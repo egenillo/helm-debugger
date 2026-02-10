@@ -35,6 +35,7 @@ class LineSearchResult:
     last_successful_line: Optional[int] = None
     steps: list[LineSearchStep] = None
     error_result: Optional[HelmResult] = None
+    last_successful_result: Optional[HelmResult] = None
     template: Optional[ParsedTemplate] = None
     context_before: list[str] = None
     context_after: list[str] = None
@@ -170,6 +171,7 @@ class LineBinarySearcher:
         high = total_lines
         last_successful = 0
         failing_line = None
+        last_successful_result = None
 
         while low <= high:
             mid = (low + high) // 2
@@ -190,6 +192,7 @@ class LineBinarySearcher:
 
             if result.success:
                 last_successful = mid
+                last_successful_result = result
                 low = mid + 1
             else:
                 failing_line = mid
@@ -218,6 +221,7 @@ class LineBinarySearcher:
                 last_successful_line=last_successful if last_successful > 0 else None,
                 steps=steps,
                 error_result=error_result,
+                last_successful_result=last_successful_result,
                 template=template,
                 context_before=context_before,
                 context_after=context_after
@@ -256,6 +260,7 @@ class LineStepByStepSearcher:
 
         steps = []
         last_successful = 0
+        last_successful_result = None
 
         for line_num in range(start_line, total_lines + 1):
             result = self.line_executor.execute_up_to_line(template, line_num)
@@ -273,6 +278,7 @@ class LineStepByStepSearcher:
 
             if result.success:
                 last_successful = line_num
+                last_successful_result = result
             else:
                 lines = template.original_content.splitlines()
                 failing_content = lines[line_num - 1] if line_num <= len(lines) else ""
@@ -292,6 +298,7 @@ class LineStepByStepSearcher:
                     last_successful_line=last_successful if last_successful > 0 else None,
                     steps=steps,
                     error_result=result,
+                    last_successful_result=last_successful_result,
                     template=template,
                     context_before=context_before,
                     context_after=context_after

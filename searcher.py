@@ -39,6 +39,7 @@ class SearchResult:
     last_successful_block_index: Optional[int] = None
     steps: list[SearchStep] = None
     error_result: Optional[HelmResult] = None
+    last_successful_result: Optional[HelmResult] = None
     template: Optional[ParsedTemplate] = None
 
     def __post_init__(self):
@@ -86,6 +87,7 @@ class BinarySearcher:
         high = total_blocks - 1
         last_successful = -1
         failing_index = None
+        last_successful_result = None
 
         while low <= high:
             mid = (low + high) // 2
@@ -108,6 +110,7 @@ class BinarySearcher:
             if result.success:
                 # Error is after mid
                 last_successful = mid
+                last_successful_result = result
                 low = mid + 1
             else:
                 # Error is at or before mid
@@ -126,6 +129,7 @@ class BinarySearcher:
                 last_successful_block_index=last_successful if last_successful >= 0 else None,
                 steps=steps,
                 error_result=error_result,
+                last_successful_result=last_successful_result,
                 template=template
             )
 
@@ -165,6 +169,7 @@ class StepByStepSearcher:
 
         steps = []
         last_successful = -1
+        last_successful_result = None
 
         for i in range(start_from, len(blocks)):
             result = self.inc_executor.execute_up_to_block(template, i)
@@ -182,6 +187,7 @@ class StepByStepSearcher:
 
             if result.success:
                 last_successful = i
+                last_successful_result = result
             else:
                 # Found the failing block
                 return SearchResult(
@@ -191,6 +197,7 @@ class StepByStepSearcher:
                     last_successful_block_index=last_successful if last_successful >= 0 else None,
                     steps=steps,
                     error_result=result,
+                    last_successful_result=last_successful_result,
                     template=template
                 )
 

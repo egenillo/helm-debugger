@@ -3,6 +3,7 @@ Output reporter for Helm template debugger.
 Handles formatting and displaying results to the user.
 """
 
+import re
 import sys
 import io
 import platform
@@ -131,6 +132,9 @@ class Reporter:
         # Show context around the error
         self._print_code_context(template, block)
 
+        # Show rendered manifest near failure
+        self._print_rendered_context(result)
+
         # Show Helm error message
         if result.error_result and result.error_result.stderr:
             print(f"\n{Colors.BOLD}Helm Error:{Colors.RESET}")
@@ -187,6 +191,86 @@ class Reporter:
             print(f"{prefix} {line_num_fmt} | {content_fmt}")
 
         print(f"{Colors.DIM}{'-' * 40}{Colors.RESET}")
+
+    def _extract_file_section(self, rendered_output: str, file_name: str) -> Optional[str]:
+        """Extract a single file's rendered YAML from combined helm template output."""
+        if not rendered_output:
+            return None
+
+        # helm template output separates files with:
+        #   ---
+        #   # Source: <chart>/templates/<file_name>
+        sections = re.split(r'^---\s*$', rendered_output, flags=re.MULTILINE)
+
+        for section in sections:
+            # Check if this section belongs to the target file
+            header_match = re.search(
+                r'#\s*Source:\s*\S+/templates/' + re.escape(file_name),
+                section
+            )
+            if header_match:
+                # Return the section content after the Source header line
+                lines = section.splitlines()
+                content_lines = []
+                past_header = False
+                for line in lines:
+                    if past_header:
+                        content_lines.append(line)
+                    elif re.match(r'#\s*Source:', line):
+                        past_header = True
+                    # skip blank lines before the header
+                if content_lines:
+                    return "\n".join(content_lines)
+                # If no lines after header, return trimmed section
+                return section.strip()
+
+        return None
+
+    def _print_rendered_context(self, result, context_lines: int = 5):
+        """
+        Print the rendered manifest near the failure point.
+        Works with both SearchResult and LineSearchResult (duck-typed).
+        """
+        last_result = getattr(result, 'last_successful_result', None)
+        if not last_result or not last_result.stdout:
+            return
+
+        template = getattr(result, 'template', None)
+        if not template:
+            return
+
+        file_name = template.file_path.name
+        section = self._extract_file_section(last_result.stdout, file_name)
+
+        if not section:
+            # Fall back to full stdout if we can't isolate the file
+            section = last_result.stdout
+
+        rendered_lines = section.splitlines()
+        if not rendered_lines:
+            return
+
+        # Show the tail of the rendered section (the area right before the failure)
+        total = len(rendered_lines)
+        start = max(0, total - context_lines)
+        display_lines = rendered_lines[start:]
+
+        print(f"\n{Colors.BOLD}{Colors.MAGENTA}Rendered Manifest (before failure):{Colors.RESET}")
+        print(f"{Colors.DIM}{'-' * 40}{Colors.RESET}")
+
+        for i, line in enumerate(display_lines):
+            line_num = start + i + 1
+            line_num_str = f"{line_num:>6}"
+            print(f"  {Colors.DIM}{line_num_str}{Colors.RESET} | {line}")
+
+        print(f"{Colors.DIM}{'-' * 40}{Colors.RESET}")
+
+        # If the error result has a rendered line number, mention it
+        error_result = getattr(result, 'error_result', None)
+        if error_result:
+            rendered_error_line = error_result.get_failing_line()
+            if rendered_error_line:
+                print(f"  {Colors.DIM}(Helm reports error at rendered line {rendered_error_line}){Colors.RESET}")
 
     def print_multi_file_results(self, results: dict[str, SearchResult]):
         """Print results from multiple file search."""
@@ -289,6 +373,9 @@ class Reporter:
 
         # Show context
         self._print_line_context(result)
+
+        # Show rendered manifest near failure
+        self._print_rendered_context(result)
 
         # Show Helm error message
         if result.error_result and result.error_result.stderr:

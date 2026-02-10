@@ -2,6 +2,29 @@
 
 A Python tool to debug Helm template rendering issues by executing templates incrementally to find the exact line causing failures.
 
+## What's New
+
+### Rendered Manifest Output
+
+When the debugger finds the failing line or block, it now displays the **rendered manifest** (after Go template expansion) around the failure point. This lets you see the actual expanded values, indentation, and YAML structure — not just the raw template source.
+
+```
+Rendered Manifest (before failure):
+----------------------------------------
+      14 |       labels:
+      15 |         app: debug-release
+      16 |     spec:
+      17 |       containers:
+      18 |         - name: debug-release
+----------------------------------------
+  (Helm reports error at rendered line 18)
+```
+
+This is especially useful for:
+- Seeing what `.Values` expressions actually resolved to
+- Checking whether `nindent`, `toYaml`, or other formatting functions produced the expected indentation
+- Understanding the rendered line number Helm reports vs. the source template line
+
 ## Features
 
 - **Smart Error Detection**: Automatically detects error type (YAML vs Go template) and uses appropriate search strategy
