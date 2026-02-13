@@ -97,6 +97,13 @@ Examples:
     )
 
     parser.add_argument(
+        "-o", "--output",
+        choices=["text", "json"],
+        default="text",
+        help="Output format: 'text' (human-readable) or 'json' (machine-readable for CI/CD). Default: text"
+    )
+
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose output"
@@ -116,11 +123,17 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    # Initialize reporter
-    reporter = Reporter(verbose=args.verbose)
+    json_mode = args.output == "json"
 
-    # Disable colors if requested
-    if args.no_color:
+    # Initialize reporter
+    if json_mode:
+        from json_reporter import JsonReporter
+        reporter = JsonReporter(verbose=args.verbose)
+    else:
+        reporter = Reporter(verbose=args.verbose)
+
+    # Disable colors if requested or in JSON mode
+    if args.no_color or json_mode:
         from reporter import Colors
         Colors.disable()
 
@@ -128,6 +141,8 @@ def main():
     is_valid, error_msg = validate_chart_directory(args.chart)
     if not is_valid:
         reporter.print_error(error_msg)
+        if json_mode:
+            return reporter.flush()
         return 1
 
     # Find helm executable
@@ -136,6 +151,8 @@ def main():
         reporter.print_error(
             "Helm executable not found. Install Helm or use --helm-path."
         )
+        if json_mode:
+            return reporter.flush()
         return 1
 
     if args.verbose:
@@ -146,10 +163,14 @@ def main():
         chart_templates = parse_chart(args.chart)
     except Exception as e:
         reporter.print_error(f"Failed to parse chart: {e}")
+        if json_mode:
+            return reporter.flush()
         return 1
 
     if chart_templates.total_files == 0:
         reporter.print_warning("No template files found in chart.")
+        if json_mode:
+            return reporter.flush()
         return 0
 
     reporter.print_chart_info(chart_templates)
@@ -164,6 +185,8 @@ def main():
         )
     except RuntimeError as e:
         reporter.print_error(str(e))
+        if json_mode:
+            return reporter.flush()
         return 1
 
     # First, check if the full template has an error
@@ -172,6 +195,8 @@ def main():
 
     if full_result.success:
         reporter.print_no_helm_error(full_result)
+        if json_mode:
+            return reporter.flush()
         return 0
 
     if args.verbose:
@@ -196,6 +221,8 @@ def main():
         ]
         if not templates_to_debug:
             reporter.print_error(f"Template file not found: {args.target_file}")
+            if json_mode:
+                return reporter.flush()
             return 1
     # Otherwise, use the file from Helm's error message
     elif failing_file:
@@ -278,6 +305,8 @@ def main():
                 reporter.print_suggestions(result)
                 break
 
+    if json_mode:
+        return reporter.flush()
     return 0
 
 
