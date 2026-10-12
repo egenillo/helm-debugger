@@ -42,6 +42,10 @@ Python 3.9+ and Helm 3 required.
 ```bash
 python main.py ./my-chart
 
+# or install it as a command
+pip install .            # then: helm-debugger ./my-chart
+pip install ".[values]"  # same, plus PyYAML for values diagnostics
+
 # optional, for values diagnostics:
 pip install pyyaml
 
