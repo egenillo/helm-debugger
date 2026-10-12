@@ -1,0 +1,10 @@
+name: "debug"
+version: "2.0.0"
+usage: "Find the exact template line that breaks `helm template`"
+description: |-
+  Bisects a chart's templates to find the line causing a rendering failure.
+  Usage: helm debug ./my-chart [-f values.yaml] [--watch] [-o json|sarif]
+command: "python3 $HELM_PLUGIN_DIR/main.py"
+platformCommand:
+  - os: windows
+    command: "python $HELM_PLUGIN_DIR/main.py"
